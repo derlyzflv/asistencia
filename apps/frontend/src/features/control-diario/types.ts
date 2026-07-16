@@ -64,4 +64,11 @@ export type ControlDiarioDetalle = {
   cantidadMarcaciones: number
   estado: EstadoControlDiario
   observacion?: string | null
+  marcaciones: ControlDiarioMarcacion[]
+}
+
+export type ControlDiarioMarcacion = {
+  id: number
+  fechaHora: string
+  hora: string
 }

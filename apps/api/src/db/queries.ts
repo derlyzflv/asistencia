@@ -160,4 +160,61 @@ export const queries = {
     group by f.fecha, t.id_trabajador, t.apellidos, t.nombres, t.dni, a.id_area, a.nombre_area, c.nombre_cargo
     order by t.apellidos asc, t.nombres asc
   `,
+  controlDiarioDetalle: `
+    with fecha_objetivo as (
+      select coalesce($2::date, (select max(fecha_marcacion) from marcaciones), current_date) as fecha
+    ),
+    resumen as (
+      select
+        t.id_trabajador as "trabajadorId",
+        trim(t.apellidos || ' ' || t.nombres) as "trabajadorNombre",
+        coalesce(t.dni, '') as dni,
+        a.nombre_area as "areaNombre",
+        c.nombre_cargo as "cargoNombre",
+        'Sin horario asignado' as "horarioNombre",
+        to_char(f.fecha, 'YYYY-MM-DD') as fecha,
+        null::text as "horaProgramadaEntrada",
+        to_char(min(m.fecha_hora_marcacion), 'HH24:MI') as "primeraMarcacion",
+        null::text as "horaProgramadaSalida",
+        to_char(max(m.fecha_hora_marcacion), 'HH24:MI') as "ultimaMarcacion",
+        0 as "minutosTardanza",
+        0 as "minutosSalidaTemprano",
+        count(m.id_marcacion)::int as "cantidadMarcaciones",
+        case
+          when count(m.id_marcacion) = 0 then 'falta'
+          when count(m.id_marcacion) = 1 then 'incompleto'
+          else 'asistio'
+        end as estado,
+        case
+          when count(m.id_marcacion) = 0 then 'Sin marcaciones registradas para la fecha consultada.'
+          when count(m.id_marcacion) = 1 then 'Solo se registro una marcacion durante la jornada.'
+          else 'Marcaciones registradas correctamente para el dia.'
+        end as observacion
+      from fecha_objetivo f
+      join trabajadores t on t.id_trabajador = $1 and t.activo = true
+      left join areas a on a.id_area = t.id_area
+      left join cargos c on c.id_cargo = t.id_cargo
+      left join marcaciones m
+        on m.id_trabajador = t.id_trabajador
+       and m.fecha_marcacion = f.fecha
+      group by f.fecha, t.id_trabajador, t.apellidos, t.nombres, t.dni, a.nombre_area, c.nombre_cargo
+    ),
+    detalle_marcaciones as (
+      select json_agg(
+        json_build_object(
+          'id', m.id_marcacion,
+          'fechaHora', to_char(m.fecha_hora_marcacion, 'YYYY-MM-DD"T"HH24:MI:SS'),
+          'hora', to_char(m.fecha_hora_marcacion, 'HH24:MI')
+        )
+        order by m.fecha_hora_marcacion asc
+      ) as marcaciones
+      from fecha_objetivo f
+      left join marcaciones m
+        on m.id_trabajador = $1
+       and m.fecha_marcacion = f.fecha
+    )
+    select r.*, coalesce(d.marcaciones, '[]'::json) as marcaciones
+    from resumen r
+    cross join detalle_marcaciones d
+  `,
 }

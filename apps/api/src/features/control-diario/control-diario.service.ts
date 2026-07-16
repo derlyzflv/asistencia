@@ -6,6 +6,16 @@ type ControlDiarioRegistro = {
   areaId: number | null
 }
 
+type ControlDiarioMarcacion = {
+  id: number
+  fechaHora: string
+  hora: string
+}
+
+type ControlDiarioDetalle = Record<string, unknown> & {
+  marcaciones: ControlDiarioMarcacion[]
+}
+
 export async function getControlDiario(fecha?: string | null) {
   const { rows } = await pool.query<ControlDiarioRegistro & Record<string, unknown>>(queries.controlDiario, [fecha ?? null])
 
@@ -42,4 +52,9 @@ export async function getControlDiario(fecha?: string | null) {
     resumen,
     registros: rows,
   }
+}
+
+export async function getControlDiarioDetalle(trabajadorId: number, fecha?: string | null) {
+  const { rows } = await pool.query<ControlDiarioDetalle>(queries.controlDiarioDetalle, [trabajadorId, fecha ?? null])
+  return rows[0] ?? null
 }

@@ -199,6 +199,7 @@ export const detalleControlDiarioMock: ControlDiarioDetalle[] = registrosControl
     cantidadMarcaciones: registro.cantidadMarcaciones,
     estado: registro.estado,
     observacion: registro.observacion,
+    marcaciones: [],
   }),
 )
 

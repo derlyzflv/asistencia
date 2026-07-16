@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '../../../components/shared/PageHeader'
 import { ControlDiarioDrawer } from '../components/ControlDiarioDrawer'
 import { ControlDiarioTable } from '../components/ControlDiarioTable'
-import { fetchControlDiario, type ControlDiarioResponse } from '../api'
+import {
+  fetchControlDiario,
+  fetchControlDiarioDetalle,
+  type ControlDiarioResponse,
+} from '../api'
 import {
   filtrosControlDiarioMock,
   registrosControlDiarioMock,
@@ -30,6 +34,7 @@ export function ControlDiarioPage() {
   const [errorApi, setErrorApi] = useState<string | null>(null)
   const [drawerAbierto, setDrawerAbierto] = useState(false)
   const [detalleActivo, setDetalleActivo] = useState<ControlDiarioDetalle | null>(null)
+  const [cargandoDetalle, setCargandoDetalle] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -99,9 +104,19 @@ export function ControlDiarioPage() {
     })
   }, [controlDiario.registros, filtros])
 
-  function abrirDetalle(registro: RegistroControlDiario) {
-    setDetalleActivo(registro)
+  async function abrirDetalle(registro: RegistroControlDiario) {
     setDrawerAbierto(true)
+    setCargandoDetalle(true)
+    setDetalleActivo({ ...registro, marcaciones: [] })
+
+    try {
+      const detalle = await fetchControlDiarioDetalle(registro.trabajadorId, registro.fecha)
+      setDetalleActivo(detalle)
+    } catch {
+      setDetalleActivo({ ...registro, marcaciones: [] })
+    } finally {
+      setCargandoDetalle(false)
+    }
   }
 
   return (
@@ -270,6 +285,7 @@ export function ControlDiarioPage() {
       <ControlDiarioDrawer
         abierto={drawerAbierto}
         detalle={detalleActivo}
+        cargando={cargandoDetalle}
         onCerrar={() => setDrawerAbierto(false)}
       />
     </div>
