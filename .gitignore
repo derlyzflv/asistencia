@@ -1,0 +1,41 @@
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+*.rar
+
+# Local tooling
+opencode.json
+**/.playwright-mcp/
+
+# Planning and generated assets
+**/docs/plans/
+*-desktop.png
+*-mobile.png
+*-tablet.png
+*-open.png
+*-drawer-*.png
+minimal-*.png
+copy-cleanup-*.png
+sync-*.png
+control-diario-*.png
+dashboard-*.png
+asignacion-*.png
+horarios-*.png
+trabajadores-*.png
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
