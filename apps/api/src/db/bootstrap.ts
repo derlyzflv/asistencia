@@ -121,6 +121,14 @@ export async function ensureDatabaseReady() {
     return
   }
 
-  await pool.query(bootstrapSql)
+  const statements = bootstrapSql
+    .split(';')
+    .map((statement) => statement.trim())
+    .filter(Boolean)
+
+  for (const statement of statements) {
+    await pool.query(statement)
+  }
+
   bootstrapped = true
 }
