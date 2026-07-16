@@ -2,6 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { pool } from '../db/pool.js'
 import { queries } from '../db/queries.js'
 import { listAreas, listCargos, listCondicionesLaborales } from '../features/catalogos/catalogos.service.js'
+import { controlDiarioRouter } from '../features/control-diario/control-diario.routes.js'
 import { trabajadoresRouter } from '../features/trabajadores/trabajadores.routes.js'
 
 const router = Router()
@@ -44,6 +45,7 @@ router.get('/condiciones-laborales', async (_request: Request, response: Respons
   }
 })
 
+router.use('/control-diario', controlDiarioRouter)
 router.use('/trabajadores', trabajadoresRouter)
 
 export { router }

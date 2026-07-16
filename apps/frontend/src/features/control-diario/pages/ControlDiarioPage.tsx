@@ -1,10 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '../../../components/shared/PageHeader'
 import { ControlDiarioDrawer } from '../components/ControlDiarioDrawer'
 import { ControlDiarioTable } from '../components/ControlDiarioTable'
+import { fetchControlDiario, type ControlDiarioResponse } from '../api'
 import {
-  detalleControlDiarioMock,
-  fechaControlDiarioMock,
   filtrosControlDiarioMock,
   registrosControlDiarioMock,
   resumenControlDiarioMock,
@@ -17,18 +16,77 @@ import type {
 
 export function ControlDiarioPage() {
   const [filtros, setFiltros] = useState<FiltrosControlDiario>({
-    fecha: fechaControlDiarioMock,
+    fecha: '',
     busqueda: '',
     areaId: 'todos',
     estado: 'todos',
   })
+  const [controlDiario, setControlDiario] = useState<ControlDiarioResponse>({
+    fecha: '',
+    resumen: resumenControlDiarioMock,
+    registros: registrosControlDiarioMock,
+  })
+  const [cargando, setCargando] = useState(true)
+  const [errorApi, setErrorApi] = useState<string | null>(null)
   const [drawerAbierto, setDrawerAbierto] = useState(false)
   const [detalleActivo, setDetalleActivo] = useState<ControlDiarioDetalle | null>(null)
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function cargar() {
+      try {
+        const data = await fetchControlDiario(filtros.fecha || undefined)
+
+        if (cancelled) return
+
+        setControlDiario(data)
+        setErrorApi(null)
+
+        if (!filtros.fecha && data.fecha) {
+          setFiltros((previo) => ({ ...previo, fecha: data.fecha }))
+        }
+      } catch {
+        if (cancelled) return
+
+        setErrorApi('No se pudo cargar la API. Se muestran datos locales temporales.')
+
+        if (!filtros.fecha) {
+          setFiltros((previo) => ({
+            ...previo,
+            fecha: registrosControlDiarioMock[0]?.fecha ?? '',
+          }))
+        }
+      } finally {
+        if (!cancelled) {
+          setCargando(false)
+        }
+      }
+    }
+
+    void cargar()
+
+    return () => {
+      cancelled = true
+    }
+  }, [filtros.fecha])
+
+  const areas = useMemo(() => {
+    const source = controlDiario.registros.length > 0 ? controlDiario.registros : registrosControlDiarioMock
+    const map = new Map<number, { id: number; nombre: string }>()
+
+    for (const registro of source) {
+      map.set(registro.areaId, { id: registro.areaId, nombre: registro.areaNombre })
+    }
+
+    return Array.from(map.values()).sort((a, b) => a.nombre.localeCompare(b.nombre))
+  }, [controlDiario.registros])
+
   const registrosFiltrados = useMemo(() => {
     const query = filtros.busqueda.trim().toLowerCase()
+    const source = controlDiario.registros.length > 0 ? controlDiario.registros : registrosControlDiarioMock
 
-    return registrosControlDiarioMock.filter((registro) => {
+    return source.filter((registro) => {
       const coincideFecha = registro.fecha === filtros.fecha
       const coincideBusqueda =
         !query ||
@@ -39,14 +97,10 @@ export function ControlDiarioPage() {
 
       return coincideFecha && coincideBusqueda && coincideArea && coincideEstado
     })
-  }, [filtros])
+  }, [controlDiario.registros, filtros])
 
   function abrirDetalle(registro: RegistroControlDiario) {
-    const detalle = detalleControlDiarioMock.find(
-      (item) => item.trabajadorId === registro.trabajadorId && item.fecha === registro.fecha,
-    )
-
-    setDetalleActivo(detalle ?? null)
+    setDetalleActivo(registro)
     setDrawerAbierto(true)
   }
 
@@ -63,17 +117,17 @@ export function ControlDiarioPage() {
           <h2 className="hero-panel__title workers-hero__title">Asistencia del dia</h2>
         </div>
         <div className="workers-hero__stats workers-hero__stats--wide">
-          <ResumenCard label="Programados" value={String(resumenControlDiarioMock.programados)} />
-          <ResumenCard label="Asistencias" value={String(resumenControlDiarioMock.asistencias)} />
-          <ResumenCard label="Tardanzas" value={String(resumenControlDiarioMock.tardanzas)} />
-          <ResumenCard label="Faltas" value={String(resumenControlDiarioMock.faltas)} />
+          <ResumenCard label="Programados" value={String(controlDiario.resumen.programados)} />
+          <ResumenCard label="Asistencias" value={String(controlDiario.resumen.asistencias)} />
+          <ResumenCard label="Tardanzas" value={String(controlDiario.resumen.tardanzas)} />
+          <ResumenCard label="Faltas" value={String(controlDiario.resumen.faltas)} />
           <ResumenCard
             label="S. anticipadas"
-            value={String(resumenControlDiarioMock.salidasAnticipadas)}
+            value={String(controlDiario.resumen.salidasAnticipadas)}
           />
-          <ResumenCard label="Incompletas" value={String(resumenControlDiarioMock.incompletas)} />
-          <ResumenCard label="Justificados" value={String(resumenControlDiarioMock.justificados)} />
-          <ResumenCard label="Sin horario" value={String(resumenControlDiarioMock.sinHorario)} />
+          <ResumenCard label="Incompletas" value={String(controlDiario.resumen.incompletas)} />
+          <ResumenCard label="Justificados" value={String(controlDiario.resumen.justificados)} />
+          <ResumenCard label="Sin horario" value={String(controlDiario.resumen.sinHorario)} />
         </div>
       </section>
 
@@ -88,6 +142,20 @@ export function ControlDiarioPage() {
           Atender ahora
         </button>
       </section>
+
+      {cargando ? (
+        <section className="empty-panel">
+          <strong>Cargando control diario...</strong>
+          <p>Obteniendo marcaciones y resumen del dia.</p>
+        </section>
+      ) : null}
+
+      {errorApi ? (
+        <section className="empty-panel">
+          <strong>Modo local activo</strong>
+          <p>{errorApi}</p>
+        </section>
+      ) : null}
 
       <section className="workers-toolbar">
         <div className="workers-toolbar__actions">
@@ -135,10 +203,10 @@ export function ControlDiarioPage() {
               }
             >
               <option value="todos">Todas las areas</option>
-              {filtrosControlDiarioMock.areas.map((area) => (
-                <option key={area.id} value={area.id}>
-                  {area.nombre}
-                </option>
+               {(areas.length > 0 ? areas : filtrosControlDiarioMock.areas).map((area) => (
+                 <option key={area.id} value={area.id}>
+                   {area.nombre}
+                 </option>
               ))}
             </select>
           </label>
@@ -170,9 +238,7 @@ export function ControlDiarioPage() {
         <div className="filters-footer">
           <p>
             Mostrando <strong>{registrosFiltrados.length}</strong> de{' '}
-            <strong>
-              {registrosControlDiarioMock.filter((registro) => registro.fecha === filtros.fecha).length}
-            </strong>{' '}
+            <strong>{(controlDiario.registros.length > 0 ? controlDiario.registros : registrosControlDiarioMock).filter((registro) => registro.fecha === filtros.fecha).length}</strong>{' '}
             registros del dia.
           </p>
           <button
@@ -180,7 +246,7 @@ export function ControlDiarioPage() {
             className="button button--ghost"
             onClick={() =>
               setFiltros({
-                fecha: fechaControlDiarioMock,
+                fecha: controlDiario.fecha || '',
                 busqueda: '',
                 areaId: 'todos',
                 estado: 'todos',

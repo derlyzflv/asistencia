@@ -21,12 +21,6 @@ const quickAccess = [
     badge: 'AH',
   },
   {
-    title: 'Sincronizacion ZKTeco',
-    description: 'Supervisa la integracion y las importaciones pendientes.',
-    to: '/sincronizacion-zkteco',
-    badge: 'ZK',
-  },
-  {
     title: 'Control diario',
     description: 'Revisa incidencias del dia y abre el detalle por trabajador.',
     to: '/control-diario',

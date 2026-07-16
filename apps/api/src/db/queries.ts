@@ -119,4 +119,45 @@ export const queries = {
     where id_trabajador = $1
     returning id_trabajador as id
   `,
+  controlDiario: `
+    with fecha_objetivo as (
+      select coalesce($1::date, (select max(fecha_marcacion) from marcaciones), current_date) as fecha
+    )
+    select
+      t.id_trabajador as id,
+      t.id_trabajador as "trabajadorId",
+      trim(t.apellidos || ' ' || t.nombres) as "trabajadorNombre",
+      coalesce(t.dni, '') as dni,
+      a.id_area as "areaId",
+      a.nombre_area as "areaNombre",
+      c.nombre_cargo as "cargoNombre",
+      'Sin horario asignado' as "horarioNombre",
+      to_char(f.fecha, 'YYYY-MM-DD') as fecha,
+      null::text as "horaProgramadaEntrada",
+      to_char(min(m.fecha_hora_marcacion), 'HH24:MI') as "primeraMarcacion",
+      null::text as "horaProgramadaSalida",
+      to_char(max(m.fecha_hora_marcacion), 'HH24:MI') as "ultimaMarcacion",
+      0 as "minutosTardanza",
+      0 as "minutosSalidaTemprano",
+      count(m.id_marcacion)::int as "cantidadMarcaciones",
+      case
+        when count(m.id_marcacion) = 0 then 'falta'
+        when count(m.id_marcacion) = 1 then 'incompleto'
+        else 'asistio'
+      end as estado,
+      case
+        when count(m.id_marcacion) = 0 then 'Sin marcaciones registradas para la fecha consultada.'
+        when count(m.id_marcacion) = 1 then 'Solo se registro una marcacion durante la jornada.'
+        else 'Marcaciones registradas correctamente para el dia.'
+      end as observacion
+    from fecha_objetivo f
+    join trabajadores t on t.activo = true
+    left join areas a on a.id_area = t.id_area
+    left join cargos c on c.id_cargo = t.id_cargo
+    left join marcaciones m
+      on m.id_trabajador = t.id_trabajador
+     and m.fecha_marcacion = f.fecha
+    group by f.fecha, t.id_trabajador, t.apellidos, t.nombres, t.dni, a.id_area, a.nombre_area, c.nombre_cargo
+    order by t.apellidos asc, t.nombres asc
+  `,
 }

@@ -4,7 +4,6 @@ import {
   ChecklistIcon,
   ClockIcon,
   HomeIcon,
-  SyncIcon,
   WorkersIcon,
 } from '../components/shared/NavigationIcons'
 
@@ -39,12 +38,6 @@ export const navigationItems: NavigationItem[] = [
     label: 'Asignacion',
     hint: 'Relacion de horarios',
     icon: <AssignIcon />,
-  },
-  {
-    to: '/sincronizacion-zkteco',
-    label: 'Sincronizacion',
-    hint: 'ZKTeco y registros',
-    icon: <SyncIcon />,
   },
   {
     to: '/control-diario',
