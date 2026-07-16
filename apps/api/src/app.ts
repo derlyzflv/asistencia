@@ -11,5 +11,6 @@ app.use(express.json())
 app.use('/api', router)
 
 app.use((error: Error, _request: Request, response: Response, _next: NextFunction) => {
+  console.error(error)
   response.status(500).json({ message: error.message || 'Unexpected server error' })
 })
