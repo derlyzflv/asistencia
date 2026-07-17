@@ -55,6 +55,6 @@ export async function getControlDiario(fecha?: string | null) {
 }
 
 export async function getControlDiarioDetalle(trabajadorId: number, fecha?: string | null) {
-  const { rows } = await pool.query<ControlDiarioDetalle>(queries.controlDiarioDetalle, [trabajadorId, fecha ?? null])
+  const { rows } = await pool.query<ControlDiarioDetalle>(queries.controlDiarioDetalle, [fecha ?? null, trabajadorId])
   return rows[0] ?? null
 }

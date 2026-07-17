@@ -1,3 +1,134 @@
+const controlDiarioBaseCte = `
+  with fecha_objetivo as (
+    select coalesce($1::date, (select max(fecha_marcacion) from marcaciones), current_date) as fecha
+  ),
+  asignacion_vigente as (
+    select distinct on (ht.id_trabajador)
+      ht.id_trabajador,
+      ht.id_horario_trabajador,
+      ht.modo_horario,
+      ht.id_horario_base,
+      ht.fecha_inicio
+    from fecha_objetivo f
+    join horario_trabajador ht
+      on ht.activo = true
+     and ht.fecha_inicio <= f.fecha
+     and (ht.fecha_fin is null or ht.fecha_fin >= f.fecha)
+    order by ht.id_trabajador, ht.fecha_inicio desc, ht.id_horario_trabajador desc
+  ),
+  horario_resuelto as (
+    select
+      av.id_trabajador,
+      av.id_horario_trabajador,
+      av.modo_horario,
+      coalesce(hd.id_horario, hb.id_horario) as id_horario,
+      coalesce(hd.codigo_horario, hb.codigo_horario) as codigo_horario,
+      coalesce(hd.nombre_horario, hb.nombre_horario) as nombre_horario,
+      coalesce(hd.hora_entrada, hb.hora_entrada) as hora_entrada,
+      coalesce(hd.hora_salida, hb.hora_salida) as hora_salida,
+      coalesce(hd.tolerancia_entrada_minutos, hb.tolerancia_entrada_minutos, 0) as tolerancia_entrada_minutos,
+      coalesce(hd.tolerancia_salida_minutos, hb.tolerancia_salida_minutos, 0) as tolerancia_salida_minutos
+    from fecha_objetivo f
+    join asignacion_vigente av on true
+    left join horarios hb on hb.id_horario = av.id_horario_base
+    left join horario_trabajador_dia htd
+      on av.modo_horario = 'VARIABLE'
+     and htd.id_horario_trabajador = av.id_horario_trabajador
+     and htd.activo = true
+     and htd.dia_semana = extract(isodow from f.fecha)::smallint
+    left join horarios hd on hd.id_horario = htd.id_horario
+  ),
+  marcaciones_resumen as (
+    select
+      m.id_trabajador,
+      m.fecha_marcacion,
+      min(m.fecha_hora_marcacion) as primera_marcacion,
+      max(m.fecha_hora_marcacion) as ultima_marcacion,
+      count(m.id_marcacion)::int as cantidad_marcaciones
+    from marcaciones m
+    group by m.id_trabajador, m.fecha_marcacion
+  ),
+  base as (
+    select
+      t.id_trabajador as id,
+      t.id_trabajador as "trabajadorId",
+      trim(t.apellidos || ' ' || t.nombres) as "trabajadorNombre",
+      coalesce(t.dni, '') as dni,
+      a.id_area as "areaId",
+      a.nombre_area as "areaNombre",
+      c.nombre_cargo as "cargoNombre",
+      coalesce(hr.nombre_horario, 'Sin horario asignado') as "horarioNombre",
+      to_char(f.fecha, 'YYYY-MM-DD') as fecha,
+      to_char(hr.hora_entrada, 'HH24:MI') as "horaProgramadaEntrada",
+      to_char(mr.primera_marcacion, 'HH24:MI') as "primeraMarcacion",
+      to_char(hr.hora_salida, 'HH24:MI') as "horaProgramadaSalida",
+      to_char(mr.ultima_marcacion, 'HH24:MI') as "ultimaMarcacion",
+      greatest(
+        0,
+        coalesce(
+          floor(extract(epoch from (mr.primera_marcacion::time - (hr.hora_entrada + (hr.tolerancia_entrada_minutos * interval '1 minute')))) / 60),
+          0
+        )
+      )::int as "minutosTardanza",
+      greatest(
+        0,
+        coalesce(
+          floor(extract(epoch from ((hr.hora_salida - (hr.tolerancia_salida_minutos * interval '1 minute')) - mr.ultima_marcacion::time)) / 60),
+          0
+        )
+      )::int as "minutosSalidaTemprano",
+      coalesce(mr.cantidad_marcaciones, 0) as "cantidadMarcaciones",
+      hr.id_horario as horario_id
+    from fecha_objetivo f
+    join trabajadores t on t.activo = true
+    left join areas a on a.id_area = t.id_area
+    left join cargos c on c.id_cargo = t.id_cargo
+    left join horario_resuelto hr on hr.id_trabajador = t.id_trabajador
+    left join marcaciones_resumen mr
+      on mr.id_trabajador = t.id_trabajador
+     and mr.fecha_marcacion = f.fecha
+  )
+`
+
+const controlDiarioSelect = `
+  select
+    id,
+    "trabajadorId",
+    "trabajadorNombre",
+    dni,
+    "areaId",
+    "areaNombre",
+    "cargoNombre",
+    "horarioNombre",
+    fecha,
+    "horaProgramadaEntrada",
+    "primeraMarcacion",
+    "horaProgramadaSalida",
+    "ultimaMarcacion",
+    "minutosTardanza",
+    "minutosSalidaTemprano",
+    "cantidadMarcaciones",
+    case
+      when horario_id is null then 'sin-horario'
+      when "cantidadMarcaciones" = 0 then 'falta'
+      when "cantidadMarcaciones" = 1 then 'incompleto'
+      when "minutosTardanza" > 0 and "minutosSalidaTemprano" > 0 then 'observado'
+      when "minutosTardanza" > 0 then 'tardanza'
+      when "minutosSalidaTemprano" > 0 then 'salida-anticipada'
+      else 'asistio'
+    end as estado,
+    case
+      when horario_id is null then 'No existe una asignacion de horario vigente para la fecha consultada.'
+      when "cantidadMarcaciones" = 0 then 'No se registraron marcaciones para el horario asignado.'
+      when "cantidadMarcaciones" = 1 then 'Solo se registro una marcacion durante la jornada.'
+      when "minutosTardanza" > 0 and "minutosSalidaTemprano" > 0 then 'Se detecto tardanza y salida anticipada en la misma jornada.'
+      when "minutosTardanza" > 0 then 'Se detecto ingreso posterior a la tolerancia permitida.'
+      when "minutosSalidaTemprano" > 0 then 'Se detecto salida antes del horario permitido.'
+      else 'Jornada registrada dentro del horario asignado.'
+    end as observacion
+  from base
+`
+
 export const queries = {
   healthcheck: 'select current_database() as database, now() as server_time',
   areas: `
@@ -290,87 +421,12 @@ export const queries = {
     where id_trabajador = $1
     returning id_trabajador as id
   `,
-  controlDiario: `
-    with fecha_objetivo as (
-      select coalesce($1::date, (select max(fecha_marcacion) from marcaciones), current_date) as fecha
-    )
-    select
-      t.id_trabajador as id,
-      t.id_trabajador as "trabajadorId",
-      trim(t.apellidos || ' ' || t.nombres) as "trabajadorNombre",
-      coalesce(t.dni, '') as dni,
-      a.id_area as "areaId",
-      a.nombre_area as "areaNombre",
-      c.nombre_cargo as "cargoNombre",
-      'Sin horario asignado' as "horarioNombre",
-      to_char(f.fecha, 'YYYY-MM-DD') as fecha,
-      null::text as "horaProgramadaEntrada",
-      to_char(min(m.fecha_hora_marcacion), 'HH24:MI') as "primeraMarcacion",
-      null::text as "horaProgramadaSalida",
-      to_char(max(m.fecha_hora_marcacion), 'HH24:MI') as "ultimaMarcacion",
-      0 as "minutosTardanza",
-      0 as "minutosSalidaTemprano",
-      count(m.id_marcacion)::int as "cantidadMarcaciones",
-      case
-        when count(m.id_marcacion) = 0 then 'falta'
-        when count(m.id_marcacion) = 1 then 'incompleto'
-        else 'asistio'
-      end as estado,
-      case
-        when count(m.id_marcacion) = 0 then 'Sin marcaciones registradas para la fecha consultada.'
-        when count(m.id_marcacion) = 1 then 'Solo se registro una marcacion durante la jornada.'
-        else 'Marcaciones registradas correctamente para el dia.'
-      end as observacion
-    from fecha_objetivo f
-    join trabajadores t on t.activo = true
-    left join areas a on a.id_area = t.id_area
-    left join cargos c on c.id_cargo = t.id_cargo
-    left join marcaciones m
-      on m.id_trabajador = t.id_trabajador
-     and m.fecha_marcacion = f.fecha
-    group by f.fecha, t.id_trabajador, t.apellidos, t.nombres, t.dni, a.id_area, a.nombre_area, c.nombre_cargo
-    order by t.apellidos asc, t.nombres asc
+  controlDiario: `${controlDiarioBaseCte}
+    ${controlDiarioSelect}
+    order by "trabajadorNombre" asc
   `,
-  controlDiarioDetalle: `
-    with fecha_objetivo as (
-      select coalesce($2::date, (select max(fecha_marcacion) from marcaciones), current_date) as fecha
-    ),
-    resumen as (
-      select
-        t.id_trabajador as "trabajadorId",
-        trim(t.apellidos || ' ' || t.nombres) as "trabajadorNombre",
-        coalesce(t.dni, '') as dni,
-        a.nombre_area as "areaNombre",
-        c.nombre_cargo as "cargoNombre",
-        'Sin horario asignado' as "horarioNombre",
-        to_char(f.fecha, 'YYYY-MM-DD') as fecha,
-        null::text as "horaProgramadaEntrada",
-        to_char(min(m.fecha_hora_marcacion), 'HH24:MI') as "primeraMarcacion",
-        null::text as "horaProgramadaSalida",
-        to_char(max(m.fecha_hora_marcacion), 'HH24:MI') as "ultimaMarcacion",
-        0 as "minutosTardanza",
-        0 as "minutosSalidaTemprano",
-        count(m.id_marcacion)::int as "cantidadMarcaciones",
-        case
-          when count(m.id_marcacion) = 0 then 'falta'
-          when count(m.id_marcacion) = 1 then 'incompleto'
-          else 'asistio'
-        end as estado,
-        case
-          when count(m.id_marcacion) = 0 then 'Sin marcaciones registradas para la fecha consultada.'
-          when count(m.id_marcacion) = 1 then 'Solo se registro una marcacion durante la jornada.'
-          else 'Marcaciones registradas correctamente para el dia.'
-        end as observacion
-      from fecha_objetivo f
-      join trabajadores t on t.id_trabajador = $1 and t.activo = true
-      left join areas a on a.id_area = t.id_area
-      left join cargos c on c.id_cargo = t.id_cargo
-      left join marcaciones m
-        on m.id_trabajador = t.id_trabajador
-       and m.fecha_marcacion = f.fecha
-      group by f.fecha, t.id_trabajador, t.apellidos, t.nombres, t.dni, a.nombre_area, c.nombre_cargo
-    ),
-    detalle_marcaciones as (
+  controlDiarioDetalle: `${controlDiarioBaseCte}
+    , detalle_marcaciones as (
       select json_agg(
         json_build_object(
           'id', m.id_marcacion,
@@ -381,11 +437,14 @@ export const queries = {
       ) as marcaciones
       from fecha_objetivo f
       left join marcaciones m
-        on m.id_trabajador = $1
+        on m.id_trabajador = $2
        and m.fecha_marcacion = f.fecha
     )
-    select r.*, coalesce(d.marcaciones, '[]'::json) as marcaciones
-    from resumen r
+    select detalle.*, coalesce(d.marcaciones, '[]'::json) as marcaciones
+    from (
+      ${controlDiarioSelect}
+      where "trabajadorId" = $2
+    ) detalle
     cross join detalle_marcaciones d
   `,
 }
