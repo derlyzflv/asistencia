@@ -1,4 +1,5 @@
 export type EstadoAsignacionHorario = 'activo' | 'inactivo'
+export type ModoHorario = 'FIJO' | 'VARIABLE'
 
 export type AsignacionHorario = {
   id: number
@@ -8,6 +9,7 @@ export type AsignacionHorario = {
   areaId: number
   areaNombre: string
   cargoNombre: string
+  modoHorario: ModoHorario
   horarioId: number
   horarioCodigo: string
   horarioNombre: string
@@ -26,9 +28,20 @@ export type FiltrosAsignacionHorarios = {
 
 export type AsignacionHorarioFormData = {
   trabajadorId?: number
+  modoHorario: ModoHorario
   horarioId?: number
   fechaInicio: string
   fechaFin?: string
   estado: EstadoAsignacionHorario
   observacion?: string
+}
+
+export type AsignacionHorarioDia = {
+  id: number
+  diaSemana: number
+  horarioId: number
+  horarioCodigo: string
+  horarioNombre: string
+  activo: boolean
+  observacion?: string | null
 }

@@ -77,6 +77,115 @@ export const queries = {
     where id_horario = $1
     returning id_horario as id
   `,
+  asignacionesHorario: `
+    select
+      ht.id_horario_trabajador as id,
+      t.id_trabajador as "trabajadorId",
+      trim(t.apellidos || ' ' || t.nombres) as "trabajadorNombre",
+      coalesce(t.dni, '') as dni,
+      a.id_area as "areaId",
+      a.nombre_area as "areaNombre",
+      c.nombre_cargo as "cargoNombre",
+      ht.modo_horario as "modoHorario",
+      h.id_horario as "horarioId",
+      h.codigo_horario as "horarioCodigo",
+      h.nombre_horario as "horarioNombre",
+      to_char(ht.fecha_inicio, 'YYYY-MM-DD') as "fechaInicio",
+      to_char(ht.fecha_fin, 'YYYY-MM-DD') as "fechaFin",
+      case when ht.activo then 'activo' else 'inactivo' end as estado,
+      ht.observacion
+    from horario_trabajador ht
+    join trabajadores t on t.id_trabajador = ht.id_trabajador
+    left join areas a on a.id_area = t.id_area
+    left join cargos c on c.id_cargo = t.id_cargo
+    left join horarios h on h.id_horario = ht.id_horario_base
+    order by ht.fecha_inicio desc, t.apellidos asc, t.nombres asc
+  `,
+  asignacionHorarioById: `
+    select
+      ht.id_horario_trabajador as id,
+      t.id_trabajador as "trabajadorId",
+      trim(t.apellidos || ' ' || t.nombres) as "trabajadorNombre",
+      coalesce(t.dni, '') as dni,
+      a.id_area as "areaId",
+      a.nombre_area as "areaNombre",
+      c.nombre_cargo as "cargoNombre",
+      ht.modo_horario as "modoHorario",
+      h.id_horario as "horarioId",
+      h.codigo_horario as "horarioCodigo",
+      h.nombre_horario as "horarioNombre",
+      to_char(ht.fecha_inicio, 'YYYY-MM-DD') as "fechaInicio",
+      to_char(ht.fecha_fin, 'YYYY-MM-DD') as "fechaFin",
+      case when ht.activo then 'activo' else 'inactivo' end as estado,
+      ht.observacion
+    from horario_trabajador ht
+    join trabajadores t on t.id_trabajador = ht.id_trabajador
+    left join areas a on a.id_area = t.id_area
+    left join cargos c on c.id_cargo = t.id_cargo
+    left join horarios h on h.id_horario = ht.id_horario_base
+    where ht.id_horario_trabajador = $1
+  `,
+  asignacionHorarioDias: `
+    select
+      htd.id_horario_trabajador_dia as id,
+      htd.dia_semana as "diaSemana",
+      h.id_horario as "horarioId",
+      h.codigo_horario as "horarioCodigo",
+      h.nombre_horario as "horarioNombre",
+      case when htd.activo then true else false end as activo,
+      htd.observacion
+    from horario_trabajador_dia htd
+    join horarios h on h.id_horario = htd.id_horario
+    where htd.id_horario_trabajador = $1
+    order by htd.dia_semana asc
+  `,
+  insertAsignacionHorario: `
+    insert into horario_trabajador (
+      id_trabajador,
+      modo_horario,
+      id_horario_base,
+      fecha_inicio,
+      fecha_fin,
+      activo,
+      observacion
+    ) values (
+      $1, $2, $3, $4, $5, $6, $7
+    ) returning id_horario_trabajador as id
+  `,
+  updateAsignacionHorario: `
+    update horario_trabajador
+    set
+      id_trabajador = $2,
+      modo_horario = $3,
+      id_horario_base = $4,
+      fecha_inicio = $5,
+      fecha_fin = $6,
+      activo = $7,
+      observacion = $8
+    where id_horario_trabajador = $1
+    returning id_horario_trabajador as id
+  `,
+  updateAsignacionHorarioActivo: `
+    update horario_trabajador
+    set activo = $2
+    where id_horario_trabajador = $1
+    returning id_horario_trabajador as id
+  `,
+  deleteAsignacionHorarioDias: `
+    delete from horario_trabajador_dia
+    where id_horario_trabajador = $1
+  `,
+  insertAsignacionHorarioDia: `
+    insert into horario_trabajador_dia (
+      id_horario_trabajador,
+      dia_semana,
+      id_horario,
+      activo,
+      observacion
+    ) values (
+      $1, $2, $3, $4, $5
+    )
+  `,
   trabajadores: `
     select
       t.id_trabajador as id,

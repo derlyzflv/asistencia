@@ -1,15 +1,20 @@
-import { filtrosAsignacionMock } from '../data/asignacionHorarios.mock'
+import type { Horario } from '../../horarios/types'
+import type { Trabajador } from '../../trabajadores/types'
 import type { AsignacionHorario, AsignacionHorarioFormData } from '../types'
 
 type AsignacionHorarioDrawerProps = {
   abierto: boolean
   asignacion: AsignacionHorario | null
+  trabajadores: Trabajador[]
+  horarios: Horario[]
   onCerrar: () => void
 }
 
 export function AsignacionHorarioDrawer({
   abierto,
   asignacion,
+  trabajadores,
+  horarios,
   onCerrar,
 }: AsignacionHorarioDrawerProps) {
   const formData = crearFormulario(asignacion)
@@ -50,15 +55,23 @@ export function AsignacionHorarioDrawer({
               <CampoSelect
                 label="Trabajador"
                 value={String(formData.trabajadorId ?? '')}
-                opciones={filtrosAsignacionMock.trabajadores.map((trabajador) => ({
+                opciones={trabajadores.map((trabajador) => ({
                   value: String(trabajador.id),
                   label: trabajador.nombreCompleto,
                 }))}
               />
               <CampoSelect
-                label="Horario a asignar"
+                label="Modo"
+                value={formData.modoHorario}
+                opciones={[
+                  { value: 'FIJO', label: 'Fijo' },
+                  { value: 'VARIABLE', label: 'Variable' },
+                ]}
+              />
+              <CampoSelect
+                label="Horario base"
                 value={String(formData.horarioId ?? '')}
-                opciones={filtrosAsignacionMock.horarios.map((horario) => ({
+                opciones={horarios.map((horario) => ({
                   value: String(horario.id),
                   label: `${horario.codigo} - ${horario.nombre}`,
                 }))}
@@ -121,6 +134,7 @@ export function AsignacionHorarioDrawer({
 function crearFormulario(asignacion: AsignacionHorario | null): AsignacionHorarioFormData {
   return {
     trabajadorId: asignacion?.trabajadorId,
+    modoHorario: asignacion?.modoHorario ?? 'FIJO',
     horarioId: asignacion?.horarioId,
     fechaInicio: asignacion?.fechaInicio ?? '',
     fechaFin: asignacion?.fechaFin ?? '',

@@ -1,11 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '../../../components/shared/PageHeader'
+import { fetchAsignacionHorariosData } from '../api'
 import { AsignacionHorarioDrawer } from '../components/AsignacionHorarioDrawer'
 import { AsignacionHorariosTable } from '../components/AsignacionHorariosTable'
 import { asignacionesHorariosMock, filtrosAsignacionMock } from '../data/asignacionHorarios.mock'
 import type { AsignacionHorario, FiltrosAsignacionHorarios } from '../types'
 
 export function AsignacionHorariosPage() {
+  const [asignaciones, setAsignaciones] = useState(asignacionesHorariosMock)
+  const [trabajadores, setTrabajadores] = useState(filtrosAsignacionMock.trabajadores)
+  const [horarios, setHorarios] = useState(filtrosAsignacionMock.horarios)
+  const [cargando, setCargando] = useState(true)
+  const [errorApi, setErrorApi] = useState<string | null>(null)
   const [filtros, setFiltros] = useState<FiltrosAsignacionHorarios>({
     busqueda: '',
     areaId: 'todos',
@@ -15,10 +21,43 @@ export function AsignacionHorariosPage() {
   const [drawerAbierto, setDrawerAbierto] = useState(false)
   const [asignacionActiva, setAsignacionActiva] = useState<AsignacionHorario | null>(null)
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function cargarDatos() {
+      try {
+        const data = await fetchAsignacionHorariosData()
+
+        if (cancelled) {
+          return
+        }
+
+        setAsignaciones(data.asignaciones)
+        setTrabajadores(data.trabajadores)
+        setHorarios(data.horarios)
+        setErrorApi(null)
+      } catch {
+        if (!cancelled) {
+          setErrorApi('No se pudo cargar la API. Se muestran datos locales temporales.')
+        }
+      } finally {
+        if (!cancelled) {
+          setCargando(false)
+        }
+      }
+    }
+
+    void cargarDatos()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const asignacionesFiltradas = useMemo(() => {
     const query = filtros.busqueda.trim().toLowerCase()
 
-    return asignacionesHorariosMock.filter((asignacion) => {
+    return asignaciones.filter((asignacion) => {
       const coincideBusqueda =
         !query ||
         asignacion.trabajadorNombre.toLowerCase().includes(query) ||
@@ -30,16 +69,16 @@ export function AsignacionHorariosPage() {
 
       return coincideBusqueda && coincideArea && coincideHorario && coincideEstado
     })
-  }, [filtros])
+  }, [asignaciones, filtros])
 
   const resumen = useMemo(
     () => ({
-      total: asignacionesHorariosMock.length,
-      vigentes: asignacionesHorariosMock.filter((asignacion) => asignacion.estado === 'activo').length,
-      inactivas: asignacionesHorariosMock.filter((asignacion) => asignacion.estado === 'inactivo').length,
-      abiertas: asignacionesHorariosMock.filter((asignacion) => !asignacion.fechaFin).length,
+      total: asignaciones.length,
+      vigentes: asignaciones.filter((asignacion) => asignacion.estado === 'activo').length,
+      inactivas: asignaciones.filter((asignacion) => asignacion.estado === 'inactivo').length,
+      abiertas: asignaciones.filter((asignacion) => !asignacion.fechaFin).length,
     }),
-    [],
+    [asignaciones],
   )
 
   function abrirDrawer(asignacion: AsignacionHorario | null) {
@@ -66,6 +105,20 @@ export function AsignacionHorariosPage() {
           <ResumenCard label="Sin fecha fin" value={String(resumen.abiertas)} />
         </div>
       </section>
+
+      {cargando ? (
+        <section className="empty-panel">
+          <strong>Cargando asignaciones...</strong>
+          <p>Obteniendo padron, horarios y vigencias desde la API.</p>
+        </section>
+      ) : null}
+
+      {errorApi ? (
+        <section className="empty-panel">
+          <strong>Modo local activo</strong>
+          <p>{errorApi}</p>
+        </section>
+      ) : null}
 
       <section className="workers-toolbar">
         <div className="workers-toolbar__actions">
@@ -126,7 +179,7 @@ export function AsignacionHorariosPage() {
               }
             >
               <option value="todos">Todos los horarios</option>
-              {filtrosAsignacionMock.horarios.map((horario) => (
+              {horarios.map((horario) => (
                 <option key={horario.id} value={horario.id}>
                   {horario.codigo} - {horario.nombre}
                 </option>
@@ -155,7 +208,7 @@ export function AsignacionHorariosPage() {
         <div className="filters-footer">
           <p>
             Mostrando <strong>{asignacionesFiltradas.length}</strong> de{' '}
-            <strong>{asignacionesHorariosMock.length}</strong> asignaciones.
+            <strong>{asignaciones.length}</strong> asignaciones.
           </p>
           <button
             type="button"
@@ -181,6 +234,8 @@ export function AsignacionHorariosPage() {
       <AsignacionHorarioDrawer
         abierto={drawerAbierto}
         asignacion={asignacionActiva}
+        trabajadores={trabajadores}
+        horarios={horarios}
         onCerrar={() => setDrawerAbierto(false)}
       />
     </div>

@@ -45,7 +45,7 @@ export function AsignacionHorariosTable({
                   <td>
                     <div className="workers-name-cell">
                       <strong>{asignacion.horarioNombre}</strong>
-                      <span>{asignacion.horarioCodigo}</span>
+                      <span>{`${asignacion.horarioCodigo} · ${asignacion.modoHorario}`}</span>
                     </div>
                   </td>
                   <td>
@@ -102,7 +102,7 @@ export function AsignacionHorariosTable({
               </div>
               <div>
                 <dt>Horario</dt>
-                <dd>{asignacion.horarioCodigo}</dd>
+                <dd>{`${asignacion.horarioCodigo} · ${asignacion.modoHorario}`}</dd>
               </div>
               <div>
                 <dt>Periodo</dt>

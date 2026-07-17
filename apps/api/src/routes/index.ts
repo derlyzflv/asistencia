@@ -2,6 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { pool } from '../db/pool.js'
 import { queries } from '../db/queries.js'
 import { listAreas, listCargos, listCondicionesLaborales } from '../features/catalogos/catalogos.service.js'
+import { asignacionesHorarioRouter } from '../features/asignaciones-horario/asignaciones-horario.routes.js'
 import { controlDiarioRouter } from '../features/control-diario/control-diario.routes.js'
 import { horariosRouter } from '../features/horarios/horarios.routes.js'
 import { trabajadoresRouter } from '../features/trabajadores/trabajadores.routes.js'
@@ -48,6 +49,7 @@ router.get('/condiciones-laborales', async (_request: Request, response: Respons
 
 router.use('/control-diario', controlDiarioRouter)
 router.use('/horarios', horariosRouter)
+router.use('/asignaciones-horario', asignacionesHorarioRouter)
 router.use('/trabajadores', trabajadoresRouter)
 
 export { router }
