@@ -3,6 +3,7 @@ import { pool } from '../db/pool.js'
 import { queries } from '../db/queries.js'
 import { listAreas, listCargos, listCondicionesLaborales } from '../features/catalogos/catalogos.service.js'
 import { controlDiarioRouter } from '../features/control-diario/control-diario.routes.js'
+import { horariosRouter } from '../features/horarios/horarios.routes.js'
 import { trabajadoresRouter } from '../features/trabajadores/trabajadores.routes.js'
 
 const router = Router()
@@ -46,6 +47,7 @@ router.get('/condiciones-laborales', async (_request: Request, response: Respons
 })
 
 router.use('/control-diario', controlDiarioRouter)
+router.use('/horarios', horariosRouter)
 router.use('/trabajadores', trabajadoresRouter)
 
 export { router }

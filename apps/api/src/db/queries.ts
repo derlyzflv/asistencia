@@ -15,6 +15,68 @@ export const queries = {
     from condiciones_laborales
     order by nombre_condicion_laboral asc
   `,
+  horarios: `
+    select
+      id_horario as id,
+      codigo_horario as codigo,
+      nombre_horario as nombre,
+      to_char(hora_entrada, 'HH24:MI') as "horaEntrada",
+      to_char(hora_salida, 'HH24:MI') as "horaSalida",
+      tolerancia_entrada_minutos as "toleranciaEntrada",
+      tolerancia_salida_minutos as "toleranciaSalida",
+      descripcion,
+      case when activo then 'activo' else 'inactivo' end as estado
+    from horarios
+    order by nombre_horario asc
+  `,
+  horarioById: `
+    select
+      id_horario as id,
+      codigo_horario as codigo,
+      nombre_horario as nombre,
+      to_char(hora_entrada, 'HH24:MI') as "horaEntrada",
+      to_char(hora_salida, 'HH24:MI') as "horaSalida",
+      tolerancia_entrada_minutos as "toleranciaEntrada",
+      tolerancia_salida_minutos as "toleranciaSalida",
+      descripcion,
+      case when activo then 'activo' else 'inactivo' end as estado
+    from horarios
+    where id_horario = $1
+  `,
+  insertHorario: `
+    insert into horarios (
+      codigo_horario,
+      nombre_horario,
+      hora_entrada,
+      hora_salida,
+      tolerancia_entrada_minutos,
+      tolerancia_salida_minutos,
+      descripcion,
+      activo
+    ) values (
+      $1, $2, $3, $4, $5, $6, $7, $8
+    ) returning id_horario as id
+  `,
+  updateHorario: `
+    update horarios
+    set
+      codigo_horario = $2,
+      nombre_horario = $3,
+      hora_entrada = $4,
+      hora_salida = $5,
+      tolerancia_entrada_minutos = $6,
+      tolerancia_salida_minutos = $7,
+      descripcion = $8,
+      activo = $9
+    where id_horario = $1
+    returning id_horario as id
+  `,
+  updateHorarioActivo: `
+    update horarios
+    set activo = $2
+    where id_horario = $1
+    returning id_horario as id
+  `,
   trabajadores: `
     select
       t.id_trabajador as id,

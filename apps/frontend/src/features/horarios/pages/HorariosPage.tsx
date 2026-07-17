@@ -1,11 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '../../../components/shared/PageHeader'
 import { HorarioDrawer } from '../components/HorarioDrawer'
 import { HorariosTable } from '../components/HorariosTable'
+import { fetchHorarios } from '../api'
 import { horariosMock } from '../data/horarios.mock'
 import type { FiltrosHorarios, Horario } from '../types'
 
 export function HorariosPage() {
+  const [horarios, setHorarios] = useState(horariosMock)
+  const [cargando, setCargando] = useState(true)
+  const [errorApi, setErrorApi] = useState<string | null>(null)
   const [filtros, setFiltros] = useState<FiltrosHorarios>({
     busqueda: '',
     estado: 'todos',
@@ -13,10 +17,41 @@ export function HorariosPage() {
   const [drawerAbierto, setDrawerAbierto] = useState(false)
   const [horarioActivo, setHorarioActivo] = useState<Horario | null>(null)
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function cargarDatos() {
+      try {
+        const data = await fetchHorarios()
+
+        if (cancelled) {
+          return
+        }
+
+        setHorarios(data)
+        setErrorApi(null)
+      } catch {
+        if (!cancelled) {
+          setErrorApi('No se pudo cargar la API. Se muestran datos locales temporales.')
+        }
+      } finally {
+        if (!cancelled) {
+          setCargando(false)
+        }
+      }
+    }
+
+    void cargarDatos()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const horariosFiltrados = useMemo(() => {
     const query = filtros.busqueda.trim().toLowerCase()
 
-    return horariosMock.filter((horario) => {
+    return horarios.filter((horario) => {
       const coincideBusqueda =
         !query ||
         horario.codigo.toLowerCase().includes(query) ||
@@ -25,15 +60,15 @@ export function HorariosPage() {
 
       return coincideBusqueda && coincideEstado
     })
-  }, [filtros])
+  }, [filtros, horarios])
 
   const resumen = useMemo(
     () => ({
-      total: horariosMock.length,
-      activos: horariosMock.filter((horario) => horario.estado === 'activo').length,
-      inactivos: horariosMock.filter((horario) => horario.estado === 'inactivo').length,
+      total: horarios.length,
+      activos: horarios.filter((horario) => horario.estado === 'activo').length,
+      inactivos: horarios.filter((horario) => horario.estado === 'inactivo').length,
     }),
-    [],
+    [horarios],
   )
 
   function abrirDrawer(horario: Horario | null) {
@@ -57,9 +92,23 @@ export function HorariosPage() {
           <ResumenCard label="Horarios" value={String(resumen.total)} />
           <ResumenCard label="Activos" value={String(resumen.activos)} />
           <ResumenCard label="Inactivos" value={String(resumen.inactivos)} />
-          <ResumenCard label="Con tolerancia" value={String(horariosMock.filter((horario) => horario.toleranciaEntrada > 0 || horario.toleranciaSalida > 0).length)} />
+          <ResumenCard label="Con tolerancia" value={String(horarios.filter((horario) => horario.toleranciaEntrada > 0 || horario.toleranciaSalida > 0).length)} />
         </div>
       </section>
+
+      {cargando ? (
+        <section className="empty-panel">
+          <strong>Cargando horarios...</strong>
+          <p>Obteniendo el catalogo desde la API.</p>
+        </section>
+      ) : null}
+
+      {errorApi ? (
+        <section className="empty-panel">
+          <strong>Modo local activo</strong>
+          <p>{errorApi}</p>
+        </section>
+      ) : null}
 
       <section className="workers-toolbar">
         <div className="workers-toolbar__actions">
@@ -106,7 +155,7 @@ export function HorariosPage() {
 
         <div className="filters-footer">
           <p>
-            Mostrando <strong>{horariosFiltrados.length}</strong> de <strong>{horariosMock.length}</strong>{' '}
+            Mostrando <strong>{horariosFiltrados.length}</strong> de <strong>{horarios.length}</strong>{' '}
             horarios.
           </p>
           <button
