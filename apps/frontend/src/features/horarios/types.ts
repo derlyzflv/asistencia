@@ -27,3 +27,5 @@ export type HorarioFormData = {
   descripcion?: string
   estado: EstadoHorario
 }
+
+export type HorarioInput = HorarioFormData

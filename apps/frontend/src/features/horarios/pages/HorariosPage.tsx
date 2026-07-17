@@ -2,20 +2,28 @@ import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '../../../components/shared/PageHeader'
 import { HorarioDrawer } from '../components/HorarioDrawer'
 import { HorariosTable } from '../components/HorariosTable'
-import { fetchHorarios } from '../api'
+import { createHorario, fetchHorarios, updateHorario } from '../api'
 import { horariosMock } from '../data/horarios.mock'
-import type { FiltrosHorarios, Horario } from '../types'
+import type { FiltrosHorarios, Horario, HorarioFormData } from '../types'
 
 export function HorariosPage() {
   const [horarios, setHorarios] = useState(horariosMock)
   const [cargando, setCargando] = useState(true)
   const [errorApi, setErrorApi] = useState<string | null>(null)
+  const [guardando, setGuardando] = useState(false)
+  const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
   const [filtros, setFiltros] = useState<FiltrosHorarios>({
     busqueda: '',
     estado: 'todos',
   })
   const [drawerAbierto, setDrawerAbierto] = useState(false)
   const [horarioActivo, setHorarioActivo] = useState<Horario | null>(null)
+
+  async function cargarHorarios() {
+    const data = await fetchHorarios()
+    setHorarios(data)
+    setErrorApi(null)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -72,8 +80,30 @@ export function HorariosPage() {
   )
 
   function abrirDrawer(horario: Horario | null) {
+    setErrorGuardado(null)
     setHorarioActivo(horario)
     setDrawerAbierto(true)
+  }
+
+  async function guardarHorario(data: HorarioFormData) {
+    setGuardando(true)
+    setErrorGuardado(null)
+
+    try {
+      if (horarioActivo) {
+        await updateHorario(horarioActivo.id, data)
+      } else {
+        await createHorario(data)
+      }
+
+      await cargarHorarios()
+      setDrawerAbierto(false)
+      setHorarioActivo(null)
+    } catch (error) {
+      setErrorGuardado(error instanceof Error ? error.message : 'No se pudo guardar el horario.')
+    } finally {
+      setGuardando(false)
+    }
   }
 
   return (
@@ -180,7 +210,13 @@ export function HorariosPage() {
       <HorarioDrawer
         abierto={drawerAbierto}
         horario={horarioActivo}
-        onCerrar={() => setDrawerAbierto(false)}
+        guardando={guardando}
+        error={errorGuardado}
+        onGuardar={guardarHorario}
+        onCerrar={() => {
+          setDrawerAbierto(false)
+          setErrorGuardado(null)
+        }}
       />
     </div>
   )
