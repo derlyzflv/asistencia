@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '../../../components/shared/PageHeader'
-import { fetchAsignacionHorariosData } from '../api'
+import {
+  createAsignacionHorario,
+  fetchAsignacionHorariosData,
+  updateAsignacionHorario,
+} from '../api'
 import { AsignacionHorarioDrawer } from '../components/AsignacionHorarioDrawer'
 import { AsignacionHorariosTable } from '../components/AsignacionHorariosTable'
 import { asignacionesHorariosMock, filtrosAsignacionMock } from '../data/asignacionHorarios.mock'
-import type { AsignacionHorario, FiltrosAsignacionHorarios } from '../types'
+import type {
+  AsignacionHorario,
+  AsignacionHorarioFormData,
+  AsignacionHorarioInput,
+  FiltrosAsignacionHorarios,
+} from '../types'
 
 export function AsignacionHorariosPage() {
   const [asignaciones, setAsignaciones] = useState(asignacionesHorariosMock)
@@ -12,6 +21,8 @@ export function AsignacionHorariosPage() {
   const [horarios, setHorarios] = useState(filtrosAsignacionMock.horarios)
   const [cargando, setCargando] = useState(true)
   const [errorApi, setErrorApi] = useState<string | null>(null)
+  const [guardando, setGuardando] = useState(false)
+  const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
   const [filtros, setFiltros] = useState<FiltrosAsignacionHorarios>({
     busqueda: '',
     areaId: 'todos',
@@ -20,6 +31,14 @@ export function AsignacionHorariosPage() {
   })
   const [drawerAbierto, setDrawerAbierto] = useState(false)
   const [asignacionActiva, setAsignacionActiva] = useState<AsignacionHorario | null>(null)
+
+  async function cargarAsignaciones() {
+    const data = await fetchAsignacionHorariosData()
+    setAsignaciones(data.asignaciones)
+    setTrabajadores(data.trabajadores)
+    setHorarios(data.horarios)
+    setErrorApi(null)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -82,8 +101,41 @@ export function AsignacionHorariosPage() {
   )
 
   function abrirDrawer(asignacion: AsignacionHorario | null) {
+    setErrorGuardado(null)
     setAsignacionActiva(asignacion)
     setDrawerAbierto(true)
+  }
+
+  async function guardarAsignacion(formData: AsignacionHorarioFormData) {
+    const payload: AsignacionHorarioInput = {
+      trabajadorId: formData.trabajadorId ?? 0,
+      modoHorario: formData.modoHorario,
+      horarioBaseId: formData.horarioId ?? null,
+      fechaInicio: formData.fechaInicio,
+      fechaFin: formData.fechaFin?.trim() ? formData.fechaFin : null,
+      estado: formData.estado,
+      observacion: formData.observacion?.trim() ?? '',
+    }
+
+    setGuardando(true)
+    setErrorGuardado(null)
+
+    try {
+      if (asignacionActiva) {
+        await updateAsignacionHorario(asignacionActiva.id, payload)
+      } else {
+        await createAsignacionHorario(payload)
+      }
+
+      await cargarAsignaciones()
+      setDrawerAbierto(false)
+      setAsignacionActiva(null)
+    } catch (error) {
+      setErrorGuardado(error instanceof Error ? error.message : 'No se pudo guardar la asignacion.')
+      throw error
+    } finally {
+      setGuardando(false)
+    }
   }
 
   return (
@@ -236,7 +288,13 @@ export function AsignacionHorariosPage() {
         asignacion={asignacionActiva}
         trabajadores={trabajadores}
         horarios={horarios}
-        onCerrar={() => setDrawerAbierto(false)}
+        guardando={guardando}
+        error={errorGuardado}
+        onGuardar={guardarAsignacion}
+        onCerrar={() => {
+          setDrawerAbierto(false)
+          setErrorGuardado(null)
+        }}
       />
     </div>
   )

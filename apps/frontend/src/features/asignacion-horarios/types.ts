@@ -36,6 +36,16 @@ export type AsignacionHorarioFormData = {
   observacion?: string
 }
 
+export type AsignacionHorarioInput = {
+  trabajadorId: number
+  modoHorario: ModoHorario
+  horarioBaseId: number | null
+  fechaInicio: string
+  fechaFin: string | null
+  estado: EstadoAsignacionHorario
+  observacion?: string
+}
+
 export type AsignacionHorarioDia = {
   id: number
   diaSemana: number

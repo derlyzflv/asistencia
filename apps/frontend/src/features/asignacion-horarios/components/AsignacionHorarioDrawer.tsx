@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { Horario } from '../../horarios/types'
 import type { Trabajador } from '../../trabajadores/types'
 import type { AsignacionHorario, AsignacionHorarioFormData } from '../types'
@@ -7,6 +8,9 @@ type AsignacionHorarioDrawerProps = {
   asignacion: AsignacionHorario | null
   trabajadores: Trabajador[]
   horarios: Horario[]
+  guardando: boolean
+  error: string | null
+  onGuardar: (data: AsignacionHorarioFormData) => Promise<void>
   onCerrar: () => void
 }
 
@@ -15,9 +19,56 @@ export function AsignacionHorarioDrawer({
   asignacion,
   trabajadores,
   horarios,
+  guardando,
+  error,
+  onGuardar,
   onCerrar,
 }: AsignacionHorarioDrawerProps) {
-  const formData = crearFormulario(asignacion)
+  const initialData = useMemo(() => crearFormulario(asignacion), [asignacion])
+  const [formData, setFormData] = useState<AsignacionHorarioFormData>(initialData)
+  const [errorValidacion, setErrorValidacion] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (abierto) {
+      setFormData(initialData)
+      setErrorValidacion(null)
+    }
+  }, [abierto, initialData])
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!formData.trabajadorId) {
+      setErrorValidacion('Debes seleccionar un trabajador.')
+      return
+    }
+
+    if (!formData.horarioId) {
+      setErrorValidacion('Debes seleccionar un horario base.')
+      return
+    }
+
+    if (!formData.fechaInicio) {
+      setErrorValidacion('La fecha de inicio es obligatoria.')
+      return
+    }
+
+    if (formData.fechaFin && formData.fechaFin < formData.fechaInicio) {
+      setErrorValidacion('La fecha de fin no puede ser menor a la fecha de inicio.')
+      return
+    }
+
+    setErrorValidacion(null)
+
+    try {
+      await onGuardar({
+        ...formData,
+        observacion: formData.observacion?.trim() ?? '',
+      })
+    } catch {
+      return
+    }
+  }
 
   return (
     <div className={`drawer-shell${abierto ? ' drawer-shell--open' : ''}`}>
@@ -41,7 +92,7 @@ export function AsignacionHorarioDrawer({
           </button>
         </div>
 
-        <div className="drawer-shell__body">
+        <form id="asignacion-horario-form" className="drawer-shell__body" onSubmit={handleSubmit}>
           <section className="drawer-section">
             <div className="drawer-section__header">
               <span className="drawer-section__step">1</span>
@@ -55,6 +106,12 @@ export function AsignacionHorarioDrawer({
               <CampoSelect
                 label="Trabajador"
                 value={String(formData.trabajadorId ?? '')}
+                onChange={(value) =>
+                  setFormData((previo) => ({
+                    ...previo,
+                    trabajadorId: value ? Number(value) : undefined,
+                  }))
+                }
                 opciones={trabajadores.map((trabajador) => ({
                   value: String(trabajador.id),
                   label: trabajador.nombreCompleto,
@@ -63,6 +120,12 @@ export function AsignacionHorarioDrawer({
               <CampoSelect
                 label="Modo"
                 value={formData.modoHorario}
+                onChange={(value) =>
+                  setFormData((previo) => ({
+                    ...previo,
+                    modoHorario: value as AsignacionHorarioFormData['modoHorario'],
+                  }))
+                }
                 opciones={[
                   { value: 'FIJO', label: 'Fijo' },
                   { value: 'VARIABLE', label: 'Variable' },
@@ -71,6 +134,12 @@ export function AsignacionHorarioDrawer({
               <CampoSelect
                 label="Horario base"
                 value={String(formData.horarioId ?? '')}
+                onChange={(value) =>
+                  setFormData((previo) => ({
+                    ...previo,
+                    horarioId: value ? Number(value) : undefined,
+                  }))
+                }
                 opciones={horarios.map((horario) => ({
                   value: String(horario.id),
                   label: `${horario.codigo} - ${horario.nombre}`,
@@ -89,11 +158,27 @@ export function AsignacionHorarioDrawer({
             </div>
 
             <div className="form-grid">
-              <CampoInput label="Fecha de inicio" value={formData.fechaInicio} type="date" />
-              <CampoInput label="Fecha de fin" value={formData.fechaFin ?? ''} type="date" />
+              <CampoInput
+                label="Fecha de inicio"
+                value={formData.fechaInicio}
+                type="date"
+                onChange={(value) => setFormData((previo) => ({ ...previo, fechaInicio: value }))}
+              />
+              <CampoInput
+                label="Fecha de fin"
+                value={formData.fechaFin ?? ''}
+                type="date"
+                onChange={(value) => setFormData((previo) => ({ ...previo, fechaFin: value }))}
+              />
               <CampoSelect
                 label="Estado"
                 value={formData.estado}
+                onChange={(value) =>
+                  setFormData((previo) => ({
+                    ...previo,
+                    estado: value as AsignacionHorarioFormData['estado'],
+                  }))
+                }
                 opciones={[
                   { value: 'activo', label: 'Activo' },
                   { value: 'inactivo', label: 'Inactivo' },
@@ -113,17 +198,35 @@ export function AsignacionHorarioDrawer({
 
             <label className="field">
               <span>Observacion</span>
-              <textarea defaultValue={formData.observacion ?? ''} rows={5} />
+              <textarea
+                value={formData.observacion ?? ''}
+                rows={5}
+                onChange={(event) =>
+                  setFormData((previo) => ({ ...previo, observacion: event.target.value }))
+                }
+              />
             </label>
           </section>
-        </div>
+
+          {errorValidacion || error ? (
+            <section className="empty-panel">
+              <strong>No se pudo guardar</strong>
+              <p>{errorValidacion ?? error}</p>
+            </section>
+          ) : null}
+        </form>
 
         <div className="drawer-shell__footer">
           <button type="button" className="button button--ghost" onClick={onCerrar}>
             Cancelar
           </button>
-          <button type="button" className="button button--primary">
-            Guardar asignacion
+          <button
+            type="submit"
+            form="asignacion-horario-form"
+            className="button button--primary"
+            disabled={guardando}
+          >
+            {guardando ? 'Guardando...' : 'Guardar asignacion'}
           </button>
         </div>
       </aside>
@@ -147,15 +250,17 @@ function CampoInput({
   label,
   value,
   type = 'text',
+  onChange,
 }: {
   label: string
   value: string
   type?: 'text' | 'date'
+  onChange: (value: string) => void
 }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <input type={type} defaultValue={value} />
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   )
 }
@@ -164,15 +269,17 @@ function CampoSelect({
   label,
   value,
   opciones,
+  onChange,
 }: {
   label: string
   value: string
   opciones: Array<{ value: string; label: string }>
+  onChange: (value: string) => void
 }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <select defaultValue={value}>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">Selecciona una opcion</option>
         {opciones.map((opcion) => (
           <option key={opcion.value} value={opcion.value}>
